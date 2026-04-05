@@ -9,6 +9,7 @@ const ADMIN_SESSION_KEY = "fashnta_admin_logged_in";
 const ADMIN_USER_KEY = "fashnta_admin_user";
 const ADMIN_ROLE_KEY = "fashnta_admin_role";
 const ORDERS_KEY = "fashnta_orders";
+const supabase = window.supabaseClient;
 
 // =============================
 // DOM
