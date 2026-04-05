@@ -4,6 +4,8 @@
 
 
 const supabase = window.sb;
+console.log("ADMIN JS SUPABASE:", supabase);
+console.log("ADMIN JS AUTH:", supabase?.auth);
 // =============================
 // STORAGE KEYS
 // =============================
