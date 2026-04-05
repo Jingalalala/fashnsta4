@@ -1,0 +1,768 @@
+// ===============================
+// ADMIN PANEL V6 ULTIMATE
+// Compatible with your current admin.html
+// No design changes required
+// ===============================
+
+const db = window.supabaseClient;
+
+if (!db) {
+  console.error("Supabase client not found.");
+  alert("Supabase not connected. Check js/supabase.js");
+}
+
+// ===============================
+// DOM
+// ===============================
+const loginScreen = document.getElementById("loginScreen");
+const adminApp = document.getElementById("adminApp");
+const loginBtn = document.getElementById("loginBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+const loginMsg = document.getElementById("loginMsg");
+
+const pageTitle = document.getElementById("pageTitle");
+const navButtons = document.querySelectorAll(".nav-btn");
+const tabSections = document.querySelectorAll(".tab-section");
+
+const productForm = document.getElementById("productForm");
+const resetProductBtn = document.getElementById("resetProductBtn");
+const globalSearch = document.getElementById("globalSearch");
+const exportOrdersBtn = document.getElementById("exportOrdersBtn");
+
+// Dashboard
+const totalRevenueEl = document.getElementById("totalRevenue");
+const totalOrdersEl = document.getElementById("totalOrders");
+const pendingOrdersEl = document.getElementById("pendingOrders");
+const totalProductsEl = document.getElementById("totalProducts");
+
+// Reports
+const todayRevenueEl = document.getElementById("todayRevenue");
+const deliveredOrdersEl = document.getElementById("deliveredOrders");
+const cancelledOrdersEl = document.getElementById("cancelledOrders");
+const avgOrderValueEl = document.getElementById("avgOrderValue");
+const salesSummaryEl = document.getElementById("salesSummary");
+
+// Tables
+const productsTable = document.getElementById("productsTable");
+const ordersTable = document.getElementById("ordersTable");
+const recentOrdersTable = document.getElementById("recentOrdersTable");
+
+// Modal
+const orderModal = document.getElementById("orderModal");
+const orderModalBody = document.getElementById("orderModalBody");
+const closeOrderModal = document.getElementById("closeOrderModal");
+
+// ===============================
+// STATE
+// ===============================
+let allProducts = [];
+let allOrders = [];
+let currentUser = null;
+
+// ===============================
+// AUTH
+// ===============================
+loginBtn?.addEventListener("click", async () => {
+  const email = document.getElementById("loginEmail").value.trim().toLowerCase();
+  const password = document.getElementById("loginPassword").value.trim();
+
+  loginMsg.textContent = "";
+
+  if (!email || !password) {
+    loginMsg.textContent = "Enter email and password.";
+    return;
+  }
+
+  loginBtn.disabled = true;
+  loginBtn.textContent = "Logging in...";
+
+  try {
+    const { data, error } = await db.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    console.log("Login response:", data, error);
+
+    if (error) {
+      loginMsg.textContent = error.message || "Invalid login credentials.";
+      return;
+    }
+
+    currentUser = data?.user || null;
+
+    if (!currentUser?.email) {
+      loginMsg.textContent = "User email not found.";
+      return;
+    }
+
+    const isAdmin = await checkAdmin(currentUser.email);
+
+    if (!isAdmin) {
+      await db.auth.signOut();
+      loginMsg.textContent = "Access denied. Not admin.";
+      return;
+    }
+
+    showAdmin();
+  } catch (err) {
+    console.error("Login error:", err);
+    loginMsg.textContent = "Login failed.";
+  } finally {
+    loginBtn.disabled = false;
+    loginBtn.textContent = "Login";
+  }
+});
+
+logoutBtn?.addEventListener("click", async () => {
+  await db.auth.signOut();
+  location.reload();
+});
+
+async function checkAdmin(email) {
+  const cleanEmail = String(email || "").trim().toLowerCase();
+
+  const { data, error } = await db
+    .from("admin_users")
+    .select("email, role")
+    .ilike("email", cleanEmail);
+
+  console.log("Admin check data:", data);
+  console.log("Admin check error:", error);
+
+  if (error) return false;
+  if (!data || !data.length) return false;
+
+  return data.some(
+    user => String(user.email || "").trim().toLowerCase() === cleanEmail
+  );
+}
+async function loadCategories() {
+  const select = document.getElementById("productCategory");
+
+  const { data, error } = await db
+    .from("categories")
+    .select("*")
+    .order("name");
+
+  if (error) {
+    console.error("Category load error:", error);
+    select.innerHTML = "<option>Error loading</option>";
+    return;
+  }
+
+  if (!data.length) {
+    select.innerHTML = "<option>No categories</option>";
+    return;
+  }
+
+  select.innerHTML = `
+    <option value="">Select Category</option>
+    ${data.map(cat => `
+      <option value="${cat.name}">${cat.name}</option>
+    `).join("")}
+  `;
+}
+async function initAuth() {
+  try {
+    const { data } = await db.auth.getSession();
+    const user = data?.session?.user;
+
+    if (!user) return;
+
+    currentUser = user;
+
+    const isAdmin = await checkAdmin(user.email);
+    if (isAdmin) {
+      showAdmin();
+    } else {
+      await db.auth.signOut();
+    }
+  } catch (err) {
+    console.error("initAuth error:", err);
+  }
+}
+
+function showAdmin() {
+  loginScreen.classList.add("hidden");
+  adminApp.classList.remove("hidden");
+  loadAllData();
+}
+
+// ===============================
+// NAVIGATION
+// ===============================
+navButtons.forEach(btn => {
+  btn.addEventListener("click", () => {
+    navButtons.forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    const tab = btn.dataset.tab;
+    pageTitle.textContent = btn.textContent;
+
+    tabSections.forEach(sec => sec.classList.remove("active"));
+    document.getElementById(tab)?.classList.add("active");
+  });
+});
+
+// ===============================
+// LOAD ALL
+// ===============================
+async function loadAllData() {
+  await Promise.all([
+    loadDashboard(),
+    loadProducts(),
+    loadOrders(),
+    loadReports(),
+    loadCategories() // 👈 ADD THIS
+  ]);
+}
+
+// ===============================
+// DASHBOARD
+// ===============================
+async function loadDashboard() {
+  const { data: orders } = await db
+    .from("orders")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  const { data: products } = await db
+    .from("products")
+    .select("*");
+
+  allOrders = orders || [];
+  allProducts = products || [];
+
+  const totalRevenue = allOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+  const totalOrders = allOrders.length;
+  const pendingOrders = allOrders.filter(o => normalizeStatus(o.status) === "Pending").length;
+  const totalProducts = allProducts.length;
+
+  totalRevenueEl.textContent = `₹${totalRevenue.toFixed(2)}`;
+  totalOrdersEl.textContent = totalOrders;
+  pendingOrdersEl.textContent = pendingOrders;
+  totalProductsEl.textContent = totalProducts;
+
+  renderRecentOrders(allOrders.slice(0, 5));
+}
+
+function renderRecentOrders(orders) {
+  if (!orders.length) {
+    recentOrdersTable.innerHTML = "<p>No recent orders.</p>";
+    return;
+  }
+
+  recentOrdersTable.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Order #</th>
+          <th>Customer</th>
+          <th>Total</th>
+          <th>Status</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${orders.map(order => `
+          <tr>
+            <td>${escapeHtml(order.order_number || order.order_id || order.id || "-")}</td>
+            <td>${escapeHtml(order.customer_name || order.name || "-")}</td>
+            <td>₹${Number(order.total || 0).toFixed(2)}</td>
+            <td>${escapeHtml(normalizeStatus(order.status))}</td>
+            <td>${formatDate(order.created_at)}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+// ===============================
+// PRODUCTS
+// ===============================
+productForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const id = document.getElementById("productId").value.trim();
+
+  const payload = {
+    name: document.getElementById("productName").value.trim(),
+    slug: document.getElementById("productSlug").value.trim(),
+    description: document.getElementById("productDescription").value.trim(),
+    price: Number(document.getElementById("productPrice").value || 0),
+    sale_price: Number(document.getElementById("productSalePrice").value || 0),
+    category: document.getElementById("productCategory").value.trim(),
+    image_url: document.getElementById("productImage").value.trim(),
+    stock: Number(document.getElementById("productStock").value || 0),
+    sku: document.getElementById("productSKU").value.trim(),
+    status: document.getElementById("productStatus").value,
+    featured: document.getElementById("productFeatured").checked,
+    best_seller: document.getElementById("productBestSeller").checked
+  };
+
+  if (!payload.name || !payload.price) {
+    alert("Product name and price are required.");
+    return;
+  }
+
+  let result;
+
+  if (id) {
+    result = await db.from("products").update(payload).eq("id", id);
+  } else {
+    result = await db.from("products").insert([payload]);
+  }
+
+  if (result.error) {
+    alert("Error: " + result.error.message);
+    return;
+  }
+
+  alert(id ? "Product updated successfully!" : "Product added successfully!");
+  resetProductForm();
+  await loadProducts();
+  await loadDashboard();
+  await loadReports();
+});
+
+resetProductBtn?.addEventListener("click", resetProductForm);
+
+function resetProductForm() {
+  productForm?.reset();
+  document.getElementById("productId").value = "";
+}
+
+async function loadProducts() {
+  const { data, error } = await db
+    .from("products")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    productsTable.innerHTML = "<p>Failed to load products.</p>";
+    return;
+  }
+
+  allProducts = data || [];
+  renderProducts(allProducts);
+}
+
+function renderProducts(products) {
+  if (!products.length) {
+    productsTable.innerHTML = "<p>No products found.</p>";
+    return;
+  }
+
+  productsTable.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Price</th>
+          <th>Stock</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${products.map(product => `
+          <tr>
+            <td>${escapeHtml(product.name || "-")}</td>
+            <td>${escapeHtml(product.category || "-")}</td>
+            <td>₹${Number(product.price || 0).toFixed(2)}</td>
+            <td>${Number(product.stock || 0)}</td>
+            <td>${escapeHtml(product.status || "-")}</td>
+            <td>
+              <button class="action-btn edit-btn" onclick="editProduct('${product.id}')">Edit</button>
+              <button class="action-btn delete-btn" onclick="deleteProduct('${product.id}')">Delete</button>
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+window.editProduct = function(id) {
+  const p = allProducts.find(x => String(x.id) === String(id));
+  if (!p) return;
+
+  document.getElementById("productId").value = p.id || "";
+  document.getElementById("productName").value = p.name || "";
+  document.getElementById("productSlug").value = p.slug || "";
+  document.getElementById("productDescription").value = p.description || "";
+  document.getElementById("productPrice").value = p.price || "";
+  document.getElementById("productSalePrice").value = p.sale_price || "";
+  document.getElementById("productCategory").value = p.category || "";
+  document.getElementById("productImage").value = p.image_url || "";
+  document.getElementById("productStock").value = p.stock || "";
+  document.getElementById("productSKU").value = p.sku || "";
+  document.getElementById("productStatus").value = p.status || "active";
+  document.getElementById("productFeatured").checked = !!p.featured;
+  document.getElementById("productBestSeller").checked = !!p.best_seller;
+
+  document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
+};
+
+window.deleteProduct = async function(id) {
+  const ok = confirm("Delete this product?");
+  if (!ok) return;
+
+  const { error } = await db.from("products").delete().eq("id", id);
+
+  if (error) {
+    alert("Delete failed: " + error.message);
+    return;
+  }
+
+  await loadProducts();
+  await loadDashboard();
+  await loadReports();
+};
+
+// ===============================
+// ORDERS
+// ===============================
+async function loadOrders() {
+  const { data, error } = await db
+    .from("orders")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    ordersTable.innerHTML = "<p>Failed to load orders.</p>";
+    return;
+  }
+
+  allOrders = data || [];
+  renderOrders(allOrders);
+}
+
+function renderOrders(orders) {
+  if (!orders.length) {
+    ordersTable.innerHTML = "<p>No orders found.</p>";
+    return;
+  }
+
+  ordersTable.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Order #</th>
+          <th>Customer</th>
+          <th>Phone</th>
+          <th>Total</th>
+          <th>Payment</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${orders.map(order => `
+          <tr>
+            <td>${escapeHtml(order.order_number || order.order_id || order.id || "-")}</td>
+            <td>${escapeHtml(order.customer_name || order.name || "-")}</td>
+            <td>${escapeHtml(order.phone || "-")}</td>
+            <td>₹${Number(order.total || 0).toFixed(2)}</td>
+            <td>${escapeHtml(order.payment_method || order.payment || "-")}</td>
+            <td>
+              <select class="status-select" onchange="updateOrderStatus('${order.id}', this.value)">
+                ${["Pending","Confirmed","Packed","Shipped","Out for Delivery","Delivered","Cancelled"].map(status => `
+                  <option value="${status}" ${normalizeStatus(order.status) === status ? "selected" : ""}>${status}</option>
+                `).join("")}
+              </select>
+            </td>
+            <td>${formatDate(order.created_at)}</td>
+            <td>
+              <button class="action-btn edit-btn" onclick="viewOrder('${order.id}')">View</button>
+              <button class="action-btn" onclick="openInvoice('${order.order_number || order.order_id || order.id}')">Invoice</button>
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+window.updateOrderStatus = async function(id, status) {
+  const { error } = await db
+    .from("orders")
+    .update({ status })
+    .eq("id", id);
+
+  if (error) {
+    alert("Failed to update order status.");
+    return;
+  }
+
+  await loadOrders();
+  await loadDashboard();
+  await loadReports();
+};
+
+window.viewOrder = function(id) {
+  const order = allOrders.find(o => String(o.id) === String(id));
+  if (!order) return;
+
+  const itemsHtml = renderOrderItems(order);
+  const shippingAddress = `
+    ${order.address || ""}
+    ${order.city ? "<br>" + escapeHtml(order.city) : ""}
+    ${order.state ? ", " + escapeHtml(order.state) : ""}
+    ${order.pincode ? " - " + escapeHtml(order.pincode) : ""}
+  `.trim();
+
+  orderModalBody.innerHTML = `
+    <div class="order-detail-grid">
+      <p><strong>Order ID:</strong> ${escapeHtml(order.order_number || order.order_id || order.id || "-")}</p>
+      <p><strong>Customer:</strong> ${escapeHtml(order.customer_name || order.name || "-")}</p>
+      <p><strong>Email:</strong> ${escapeHtml(order.email || "-")}</p>
+      <p><strong>Phone:</strong> ${escapeHtml(order.phone || "-")}</p>
+      <p><strong>Total:</strong> ₹${Number(order.total || 0).toFixed(2)}</p>
+      <p><strong>Payment:</strong> ${escapeHtml(order.payment_method || order.payment || "-")}</p>
+      <p><strong>Status:</strong> ${escapeHtml(normalizeStatus(order.status))}</p>
+      <p><strong>Date:</strong> ${formatDate(order.created_at)}</p>
+      <p><strong>Shipping:</strong><br>${shippingAddress || "-"}</p>
+    </div>
+
+    <div style="margin-top:20px;">
+      <h4>Order Timeline</h4>
+      <div class="timeline-line">${renderTimeline(order.status)}</div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <h4>Items</h4>
+      ${itemsHtml}
+    </div>
+  `;
+
+  orderModal.classList.remove("hidden");
+};
+
+closeOrderModal?.addEventListener("click", () => {
+  orderModal.classList.add("hidden");
+});
+
+orderModal?.addEventListener("click", (e) => {
+  if (e.target === orderModal) {
+    orderModal.classList.add("hidden");
+  }
+});
+
+window.openInvoice = function(orderRef) {
+  if (!orderRef) {
+    alert("Order reference missing.");
+    return;
+  }
+  window.open(`invoice.html?order=${encodeURIComponent(orderRef)}`, "_blank");
+};
+
+// ===============================
+// REPORTS
+// ===============================
+async function loadReports() {
+  const { data: orders } = await db.from("orders").select("*");
+  const all = orders || [];
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const todayOrders = all.filter(o =>
+    (o.created_at || "").slice(0, 10) === today
+  );
+
+  const todayRevenue = todayOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+  const delivered = all.filter(o => normalizeStatus(o.status) === "Delivered").length;
+  const cancelled = all.filter(o => normalizeStatus(o.status) === "Cancelled").length;
+  const totalRevenue = all.reduce((sum, o) => sum + Number(o.total || 0), 0);
+  const avgOrderValue = all.length ? totalRevenue / all.length : 0;
+
+  todayRevenueEl.textContent = `₹${todayRevenue.toFixed(2)}`;
+  deliveredOrdersEl.textContent = delivered;
+  cancelledOrdersEl.textContent = cancelled;
+  avgOrderValueEl.textContent = `₹${avgOrderValue.toFixed(2)}`;
+
+  salesSummaryEl.innerHTML = `
+    <p><strong>Total Revenue:</strong> ₹${totalRevenue.toFixed(2)}</p>
+    <p><strong>Total Orders:</strong> ${all.length}</p>
+    <p><strong>Delivered Orders:</strong> ${delivered}</p>
+    <p><strong>Cancelled Orders:</strong> ${cancelled}</p>
+    <p><strong>Average Order Value:</strong> ₹${avgOrderValue.toFixed(2)}</p>
+  `;
+}
+
+// ===============================
+// SEARCH
+// ===============================
+globalSearch?.addEventListener("input", () => {
+  const query = globalSearch.value.trim().toLowerCase();
+
+  const filteredProducts = allProducts.filter(p =>
+    (p.name || "").toLowerCase().includes(query) ||
+    (p.category || "").toLowerCase().includes(query) ||
+    (p.sku || "").toLowerCase().includes(query) ||
+    (p.slug || "").toLowerCase().includes(query)
+  );
+
+  const filteredOrders = allOrders.filter(o =>
+    String(o.order_number || o.order_id || "").toLowerCase().includes(query) ||
+    (o.customer_name || o.name || "").toLowerCase().includes(query) ||
+    (o.phone || "").toLowerCase().includes(query) ||
+    (o.email || "").toLowerCase().includes(query)
+  );
+
+  renderProducts(filteredProducts);
+  renderOrders(filteredOrders);
+});
+
+// ===============================
+// EXPORT CSV
+// ===============================
+exportOrdersBtn?.addEventListener("click", async () => {
+  const { data: orders, error } = await db
+    .from("orders")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error || !orders?.length) {
+    alert("No orders to export.");
+    return;
+  }
+
+  const headers = [
+    "Order Number",
+    "Customer Name",
+    "Phone",
+    "Email",
+    "Total",
+    "Payment Method",
+    "Status",
+    "Date"
+  ];
+
+  const rows = orders.map(o => [
+    o.order_number || o.order_id || o.id || "",
+    o.customer_name || o.name || "",
+    o.phone || "",
+    o.email || "",
+    o.total || 0,
+    o.payment_method || o.payment || "",
+    normalizeStatus(o.status),
+    formatDate(o.created_at)
+  ]);
+
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "orders-report.csv";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+});
+
+// ===============================
+// HELPERS
+// ===============================
+function formatDate(dateString) {
+  if (!dateString) return "-";
+  return new Date(dateString).toLocaleString();
+}
+
+function normalizeStatus(status) {
+  if (!status) return "Pending";
+  const s = String(status).toLowerCase();
+
+  if (s === "pending") return "Pending";
+  if (s === "confirmed") return "Confirmed";
+  if (s === "packed") return "Packed";
+  if (s === "shipped") return "Shipped";
+  if (s === "out for delivery") return "Out for Delivery";
+  if (s === "delivered") return "Delivered";
+  if (s === "cancelled") return "Cancelled";
+
+  return status;
+}
+
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderOrderItems(order) {
+  let items = order.items || order.cart_items || order.products || null;
+
+  if (!items) return "<p>No item details stored.</p>";
+
+  if (typeof items === "string") {
+    try {
+      items = JSON.parse(items);
+    } catch {
+      return `<pre style="white-space:pre-wrap;">${escapeHtml(items)}</pre>`;
+    }
+  }
+
+  if (!Array.isArray(items) || !items.length) {
+    return "<p>No items found.</p>";
+  }
+
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Qty</th>
+          <th>Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map(item => `
+          <tr>
+            <td>${escapeHtml(item.name || item.title || "Product")}</td>
+            <td>${Number(item.quantity || item.qty || 1)}</td>
+            <td>₹${Number(item.price || 0).toFixed(2)}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderTimeline(status) {
+  const current = normalizeStatus(status);
+  const steps = ["Pending", "Confirmed", "Packed", "Shipped", "Out for Delivery", "Delivered"];
+  const cancelled = current === "Cancelled";
+
+  if (cancelled) {
+    return `
+      <div class="timeline-step done">Pending</div>
+      <div class="timeline-step done">Confirmed</div>
+      <div class="timeline-step cancel">Cancelled</div>
+    `;
+  }
+
+  const currentIndex = steps.indexOf(current);
+
+  return steps.map((step, i) => {
+    const cls = i <= currentIndex ? "done" : "";
+    return `<div class="timeline-step ${cls}">${step}</div>`;
+  }).join("");
+}
+
+// ===============================
+// INIT
+// ===============================
+initAuth();
