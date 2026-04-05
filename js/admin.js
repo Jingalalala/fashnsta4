@@ -213,7 +213,8 @@ async function loadAllData() {
     loadDashboard(),
     loadProducts(),
     loadOrders(),
-    loadReports()
+    loadReports(),
+    loadCategories() // 👈 ADD THIS
   ]);
 }
 
