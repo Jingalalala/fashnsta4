@@ -1,16 +1,19 @@
-// -------------------------
-// INIT
-// -------------------------
+// ===============================
+// ADMIN PANEL V6 ULTIMATE
+// Compatible with your current admin.html
+// No design changes required
+// ===============================
+
 const db = window.supabaseClient;
 
 if (!db) {
-  console.error("Supabase client not found. Check js/supabase.js path and config.");
+  console.error("Supabase client not found.");
   alert("Supabase not connected. Check js/supabase.js");
 }
 
-// -------------------------
+// ===============================
 // DOM
-// -------------------------
+// ===============================
 const loginScreen = document.getElementById("loginScreen");
 const adminApp = document.getElementById("adminApp");
 const loginBtn = document.getElementById("loginBtn");
@@ -44,12 +47,21 @@ const productsTable = document.getElementById("productsTable");
 const ordersTable = document.getElementById("ordersTable");
 const recentOrdersTable = document.getElementById("recentOrdersTable");
 
+// Modal
+const orderModal = document.getElementById("orderModal");
+const orderModalBody = document.getElementById("orderModalBody");
+const closeOrderModal = document.getElementById("closeOrderModal");
+
+// ===============================
+// STATE
+// ===============================
 let allProducts = [];
 let allOrders = [];
+let currentUser = null;
 
-// -------------------------
-// LOGIN
-// -------------------------
+// ===============================
+// AUTH
+// ===============================
 loginBtn?.addEventListener("click", async () => {
   const email = document.getElementById("loginEmail").value.trim();
   const password = document.getElementById("loginPassword").value.trim();
@@ -61,25 +73,38 @@ loginBtn?.addEventListener("click", async () => {
     return;
   }
 
-  const { data, error } = await db.auth.signInWithPassword({
-    email,
-    password
-  });
+  loginBtn.disabled = true;
+  loginBtn.textContent = "Logging in...";
 
-  if (error) {
-    loginMsg.textContent = error.message;
-    return;
+  try {
+    const { data, error } = await db.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+      loginMsg.textContent = error.message;
+      return;
+    }
+
+    currentUser = data?.user || null;
+
+    const isAdmin = await checkAdmin(data.user.email);
+
+    if (!isAdmin) {
+      await db.auth.signOut();
+      loginMsg.textContent = "Access denied. Not admin.";
+      return;
+    }
+
+    showAdmin();
+  } catch (err) {
+    console.error(err);
+    loginMsg.textContent = "Login failed.";
+  } finally {
+    loginBtn.disabled = false;
+    loginBtn.textContent = "Login";
   }
-
-  const isAdmin = await checkAdmin(data.user.email);
-
-  if (!isAdmin) {
-    await db.auth.signOut();
-    loginMsg.textContent = "Access denied. Not admin.";
-    return;
-  }
-
-  showAdmin();
 });
 
 logoutBtn?.addEventListener("click", async () => {
@@ -92,20 +117,28 @@ async function checkAdmin(email) {
     .from("admin_users")
     .select("*")
     .eq("email", email)
-    .single();
+    .maybeSingle();
 
   return !!data && !error;
 }
 
 async function initAuth() {
-  const { data } = await db.auth.getSession();
-  const user = data?.session?.user;
+  try {
+    const { data } = await db.auth.getSession();
+    const user = data?.session?.user;
 
-  if (!user) return;
+    if (!user) return;
 
-  const isAdmin = await checkAdmin(user.email);
-  if (isAdmin) {
-    showAdmin();
+    currentUser = user;
+
+    const isAdmin = await checkAdmin(user.email);
+    if (isAdmin) {
+      showAdmin();
+    } else {
+      await db.auth.signOut();
+    }
+  } catch (err) {
+    console.error("initAuth error:", err);
   }
 }
 
@@ -115,9 +148,9 @@ function showAdmin() {
   loadAllData();
 }
 
-// -------------------------
+// ===============================
 // NAVIGATION
-// -------------------------
+// ===============================
 navButtons.forEach(btn => {
   btn.addEventListener("click", () => {
     navButtons.forEach(b => b.classList.remove("active"));
@@ -127,13 +160,13 @@ navButtons.forEach(btn => {
     pageTitle.textContent = btn.textContent;
 
     tabSections.forEach(sec => sec.classList.remove("active"));
-    document.getElementById(tab).classList.add("active");
+    document.getElementById(tab)?.classList.add("active");
   });
 });
 
-// -------------------------
+// ===============================
 // LOAD ALL
-// -------------------------
+// ===============================
 async function loadAllData() {
   await Promise.all([
     loadDashboard(),
@@ -143,9 +176,9 @@ async function loadAllData() {
   ]);
 }
 
-// -------------------------
+// ===============================
 // DASHBOARD
-// -------------------------
+// ===============================
 async function loadDashboard() {
   const { data: orders } = await db
     .from("orders")
@@ -161,7 +194,7 @@ async function loadDashboard() {
 
   const totalRevenue = allOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
   const totalOrders = allOrders.length;
-  const pendingOrders = allOrders.filter(o => o.status === "Pending").length;
+  const pendingOrders = allOrders.filter(o => normalizeStatus(o.status) === "Pending").length;
   const totalProducts = allProducts.length;
 
   totalRevenueEl.textContent = `₹${totalRevenue.toFixed(2)}`;
@@ -192,10 +225,10 @@ function renderRecentOrders(orders) {
       <tbody>
         ${orders.map(order => `
           <tr>
-            <td>${order.order_number || "-"}</td>
-            <td>${order.customer_name || "-"}</td>
+            <td>${escapeHtml(order.order_number || order.order_id || order.id || "-")}</td>
+            <td>${escapeHtml(order.customer_name || order.name || "-")}</td>
             <td>₹${Number(order.total || 0).toFixed(2)}</td>
-            <td>${order.status || "-"}</td>
+            <td>${escapeHtml(normalizeStatus(order.status))}</td>
             <td>${formatDate(order.created_at)}</td>
           </tr>
         `).join("")}
@@ -204,13 +237,13 @@ function renderRecentOrders(orders) {
   `;
 }
 
-// -------------------------
+// ===============================
 // PRODUCTS
-// -------------------------
+// ===============================
 productForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const id = document.getElementById("productId").value;
+  const id = document.getElementById("productId").value.trim();
 
   const payload = {
     name: document.getElementById("productName").value.trim(),
@@ -227,6 +260,11 @@ productForm?.addEventListener("submit", async (e) => {
     best_seller: document.getElementById("productBestSeller").checked
   };
 
+  if (!payload.name || !payload.price) {
+    alert("Product name and price are required.");
+    return;
+  }
+
   let result;
 
   if (id) {
@@ -240,7 +278,7 @@ productForm?.addEventListener("submit", async (e) => {
     return;
   }
 
-  alert("Product saved successfully!");
+  alert(id ? "Product updated successfully!" : "Product added successfully!");
   resetProductForm();
   await loadProducts();
   await loadDashboard();
@@ -250,7 +288,7 @@ productForm?.addEventListener("submit", async (e) => {
 resetProductBtn?.addEventListener("click", resetProductForm);
 
 function resetProductForm() {
-  productForm.reset();
+  productForm?.reset();
   document.getElementById("productId").value = "";
 }
 
@@ -261,6 +299,7 @@ async function loadProducts() {
     .order("created_at", { ascending: false });
 
   if (error) {
+    console.error(error);
     productsTable.innerHTML = "<p>Failed to load products.</p>";
     return;
   }
@@ -290,11 +329,11 @@ function renderProducts(products) {
       <tbody>
         ${products.map(product => `
           <tr>
-            <td>${product.name || "-"}</td>
-            <td>${product.category || "-"}</td>
+            <td>${escapeHtml(product.name || "-")}</td>
+            <td>${escapeHtml(product.category || "-")}</td>
             <td>₹${Number(product.price || 0).toFixed(2)}</td>
-            <td>${product.stock || 0}</td>
-            <td>${product.status || "-"}</td>
+            <td>${Number(product.stock || 0)}</td>
+            <td>${escapeHtml(product.status || "-")}</td>
             <td>
               <button class="action-btn edit-btn" onclick="editProduct('${product.id}')">Edit</button>
               <button class="action-btn delete-btn" onclick="deleteProduct('${product.id}')">Delete</button>
@@ -307,7 +346,7 @@ function renderProducts(products) {
 }
 
 window.editProduct = function(id) {
-  const p = allProducts.find(x => x.id === id);
+  const p = allProducts.find(x => String(x.id) === String(id));
   if (!p) return;
 
   document.getElementById("productId").value = p.id || "";
@@ -324,7 +363,7 @@ window.editProduct = function(id) {
   document.getElementById("productFeatured").checked = !!p.featured;
   document.getElementById("productBestSeller").checked = !!p.best_seller;
 
-  document.getElementById("products").scrollIntoView({ behavior: "smooth" });
+  document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
 };
 
 window.deleteProduct = async function(id) {
@@ -343,9 +382,9 @@ window.deleteProduct = async function(id) {
   await loadReports();
 };
 
-// -------------------------
+// ===============================
 // ORDERS
-// -------------------------
+// ===============================
 async function loadOrders() {
   const { data, error } = await db
     .from("orders")
@@ -353,6 +392,7 @@ async function loadOrders() {
     .order("created_at", { ascending: false });
 
   if (error) {
+    console.error(error);
     ordersTable.innerHTML = "<p>Failed to load orders.</p>";
     return;
   }
@@ -378,24 +418,29 @@ function renderOrders(orders) {
           <th>Payment</th>
           <th>Status</th>
           <th>Date</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         ${orders.map(order => `
           <tr>
-            <td>${order.order_number || "-"}</td>
-            <td>${order.customer_name || "-"}</td>
-            <td>${order.phone || "-"}</td>
+            <td>${escapeHtml(order.order_number || order.order_id || order.id || "-")}</td>
+            <td>${escapeHtml(order.customer_name || order.name || "-")}</td>
+            <td>${escapeHtml(order.phone || "-")}</td>
             <td>₹${Number(order.total || 0).toFixed(2)}</td>
-            <td>${order.payment_method || "-"}</td>
+            <td>${escapeHtml(order.payment_method || order.payment || "-")}</td>
             <td>
               <select class="status-select" onchange="updateOrderStatus('${order.id}', this.value)">
                 ${["Pending","Confirmed","Packed","Shipped","Out for Delivery","Delivered","Cancelled"].map(status => `
-                  <option value="${status}" ${order.status === status ? "selected" : ""}>${status}</option>
+                  <option value="${status}" ${normalizeStatus(order.status) === status ? "selected" : ""}>${status}</option>
                 `).join("")}
               </select>
             </td>
             <td>${formatDate(order.created_at)}</td>
+            <td>
+              <button class="action-btn edit-btn" onclick="viewOrder('${order.id}')">View</button>
+              <button class="action-btn" onclick="openInvoice('${order.order_number || order.order_id || order.id}')">Invoice</button>
+            </td>
           </tr>
         `).join("")}
       </tbody>
@@ -419,9 +464,66 @@ window.updateOrderStatus = async function(id, status) {
   await loadReports();
 };
 
-// -------------------------
+window.viewOrder = function(id) {
+  const order = allOrders.find(o => String(o.id) === String(id));
+  if (!order) return;
+
+  const itemsHtml = renderOrderItems(order);
+  const shippingAddress = `
+    ${order.address || ""}
+    ${order.city ? "<br>" + escapeHtml(order.city) : ""}
+    ${order.state ? ", " + escapeHtml(order.state) : ""}
+    ${order.pincode ? " - " + escapeHtml(order.pincode) : ""}
+  `.trim();
+
+  orderModalBody.innerHTML = `
+    <div class="order-detail-grid">
+      <p><strong>Order ID:</strong> ${escapeHtml(order.order_number || order.order_id || order.id || "-")}</p>
+      <p><strong>Customer:</strong> ${escapeHtml(order.customer_name || order.name || "-")}</p>
+      <p><strong>Email:</strong> ${escapeHtml(order.email || "-")}</p>
+      <p><strong>Phone:</strong> ${escapeHtml(order.phone || "-")}</p>
+      <p><strong>Total:</strong> ₹${Number(order.total || 0).toFixed(2)}</p>
+      <p><strong>Payment:</strong> ${escapeHtml(order.payment_method || order.payment || "-")}</p>
+      <p><strong>Status:</strong> ${escapeHtml(normalizeStatus(order.status))}</p>
+      <p><strong>Date:</strong> ${formatDate(order.created_at)}</p>
+      <p><strong>Shipping:</strong><br>${shippingAddress || "-"}</p>
+    </div>
+
+    <div style="margin-top:20px;">
+      <h4>Order Timeline</h4>
+      <div class="timeline-line">${renderTimeline(order.status)}</div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <h4>Items</h4>
+      ${itemsHtml}
+    </div>
+  `;
+
+  orderModal.classList.remove("hidden");
+};
+
+closeOrderModal?.addEventListener("click", () => {
+  orderModal.classList.add("hidden");
+});
+
+orderModal?.addEventListener("click", (e) => {
+  if (e.target === orderModal) {
+    orderModal.classList.add("hidden");
+  }
+});
+
+window.openInvoice = function(orderRef) {
+  if (!orderRef) {
+    alert("Order reference missing.");
+    return;
+  }
+  window.open(`invoice.html?order=${encodeURIComponent(orderRef)}`, "_blank");
+};
+
+// ===============================
 // REPORTS
-// -------------------------
+// ===============================
 async function loadReports() {
   const { data: orders } = await db.from("orders").select("*");
   const all = orders || [];
@@ -433,8 +535,8 @@ async function loadReports() {
   );
 
   const todayRevenue = todayOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
-  const delivered = all.filter(o => o.status === "Delivered").length;
-  const cancelled = all.filter(o => o.status === "Cancelled").length;
+  const delivered = all.filter(o => normalizeStatus(o.status) === "Delivered").length;
+  const cancelled = all.filter(o => normalizeStatus(o.status) === "Cancelled").length;
   const totalRevenue = all.reduce((sum, o) => sum + Number(o.total || 0), 0);
   const avgOrderValue = all.length ? totalRevenue / all.length : 0;
 
@@ -452,31 +554,33 @@ async function loadReports() {
   `;
 }
 
-// -------------------------
+// ===============================
 // SEARCH
-// -------------------------
+// ===============================
 globalSearch?.addEventListener("input", () => {
   const query = globalSearch.value.trim().toLowerCase();
 
   const filteredProducts = allProducts.filter(p =>
     (p.name || "").toLowerCase().includes(query) ||
     (p.category || "").toLowerCase().includes(query) ||
-    (p.sku || "").toLowerCase().includes(query)
+    (p.sku || "").toLowerCase().includes(query) ||
+    (p.slug || "").toLowerCase().includes(query)
   );
 
   const filteredOrders = allOrders.filter(o =>
-    (o.order_number || "").toLowerCase().includes(query) ||
-    (o.customer_name || "").toLowerCase().includes(query) ||
-    (o.phone || "").toLowerCase().includes(query)
+    String(o.order_number || o.order_id || "").toLowerCase().includes(query) ||
+    (o.customer_name || o.name || "").toLowerCase().includes(query) ||
+    (o.phone || "").toLowerCase().includes(query) ||
+    (o.email || "").toLowerCase().includes(query)
   );
 
   renderProducts(filteredProducts);
   renderOrders(filteredOrders);
 });
 
-// -------------------------
+// ===============================
 // EXPORT CSV
-// -------------------------
+// ===============================
 exportOrdersBtn?.addEventListener("click", async () => {
   const { data: orders, error } = await db
     .from("orders")
@@ -500,13 +604,13 @@ exportOrdersBtn?.addEventListener("click", async () => {
   ];
 
   const rows = orders.map(o => [
-    o.order_number || "",
-    o.customer_name || "",
+    o.order_number || o.order_id || o.id || "",
+    o.customer_name || o.name || "",
     o.phone || "",
     o.email || "",
     o.total || 0,
-    o.payment_method || "",
-    o.status || "",
+    o.payment_method || o.payment || "",
+    normalizeStatus(o.status),
     formatDate(o.created_at)
   ]);
 
@@ -525,15 +629,98 @@ exportOrdersBtn?.addEventListener("click", async () => {
   document.body.removeChild(link);
 });
 
-// -------------------------
+// ===============================
 // HELPERS
-// -------------------------
+// ===============================
 function formatDate(dateString) {
   if (!dateString) return "-";
   return new Date(dateString).toLocaleString();
 }
 
-// -------------------------
+function normalizeStatus(status) {
+  if (!status) return "Pending";
+  const s = String(status).toLowerCase();
+
+  if (s === "pending") return "Pending";
+  if (s === "confirmed") return "Confirmed";
+  if (s === "packed") return "Packed";
+  if (s === "shipped") return "Shipped";
+  if (s === "out for delivery") return "Out for Delivery";
+  if (s === "delivered") return "Delivered";
+  if (s === "cancelled") return "Cancelled";
+
+  return status;
+}
+
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderOrderItems(order) {
+  let items = order.items || order.cart_items || order.products || null;
+
+  if (!items) return "<p>No item details stored.</p>";
+
+  if (typeof items === "string") {
+    try {
+      items = JSON.parse(items);
+    } catch {
+      return `<pre style="white-space:pre-wrap;">${escapeHtml(items)}</pre>`;
+    }
+  }
+
+  if (!Array.isArray(items) || !items.length) {
+    return "<p>No items found.</p>";
+  }
+
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Qty</th>
+          <th>Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map(item => `
+          <tr>
+            <td>${escapeHtml(item.name || item.title || "Product")}</td>
+            <td>${Number(item.quantity || item.qty || 1)}</td>
+            <td>₹${Number(item.price || 0).toFixed(2)}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderTimeline(status) {
+  const current = normalizeStatus(status);
+  const steps = ["Pending", "Confirmed", "Packed", "Shipped", "Out for Delivery", "Delivered"];
+  const cancelled = current === "Cancelled";
+
+  if (cancelled) {
+    return `
+      <div class="timeline-step done">Pending</div>
+      <div class="timeline-step done">Confirmed</div>
+      <div class="timeline-step cancel">Cancelled</div>
+    `;
+  }
+
+  const currentIndex = steps.indexOf(current);
+
+  return steps.map((step, i) => {
+    const cls = i <= currentIndex ? "done" : "";
+    return `<div class="timeline-step ${cls}">${step}</div>`;
+  }).join("");
+}
+
+// ===============================
 // INIT
-// -------------------------
+// ===============================
 initAuth();
