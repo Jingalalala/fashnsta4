@@ -3,15 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Admin Panel V3</title>
+  <title>Admin Panel V6 Ultimate</title>
 
-  <!-- CSS -->
   <link rel="stylesheet" href="admin.css" />
 
-  <!-- Supabase CDN -->
+  <!-- Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-  <!-- Your Supabase Config -->
   <script src="js/supabase.js"></script>
 </head>
 <body>
@@ -182,7 +179,17 @@
     </main>
   </div>
 
-  <!-- Admin JS -->
+  <!-- ORDER DETAILS MODAL -->
+  <div id="orderModal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>Order Details</h3>
+        <button id="closeOrderModal" class="secondary-btn">Close</button>
+      </div>
+      <div id="orderModalBody" class="modal-body"></div>
+    </div>
+  </div>
+
   <script src="js/admin.js"></script>
 </body>
 </html>
