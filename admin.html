@@ -82,10 +82,16 @@
     </div>
   </section>
 
-  <script src="js/admin.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./js/config.js"></script>
-  <script src="./js/admin.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+const supabase = window.supabase.createClient(
+  "https://aqecgofdcngooqcxdieu.supabase.co",
+  "YOUR_ANON_KEY_HERE"
+);
+</script>
+
+<script src="./js/admin.js"></script>
 </body>
 </html>
 </body>
