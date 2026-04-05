@@ -5,8 +5,12 @@
 // =============================
 // 🔐 CHANGE THESE
 // =============================
-const ADMIN_UID = "fashnta-admin";
-const ADMIN_PASSWORD = "fashnta@2026";
+const ADMIN_USERS = [
+  { uid: "fashnta-admin", password: "fashnta@2026", role: "owner" },
+  { uid: "staff1", password: "staff123", role: "staff" },
+  { uid: "staff2", password: "staff456", role: "staff" },
+  { uid: "manager1", password: "manager789", role: "manager" }
+];
 
 // localStorage keys
 const ADMIN_SESSION_KEY = "fashnta_admin_logged_in";
@@ -56,8 +60,15 @@ function handleAdminLogin() {
   const uid = adminUidInput.value.trim();
   const password = adminPasswordInput.value.trim();
 
-  if (uid === ADMIN_UID && password === ADMIN_PASSWORD) {
+  const matchedUser = ADMIN_USERS.find(
+    user => user.uid === uid && user.password === password
+  );
+
+  if (matchedUser) {
     localStorage.setItem(ADMIN_SESSION_KEY, "true");
+    localStorage.setItem("fashnta_admin_user", matchedUser.uid);
+    localStorage.setItem("fashnta_admin_role", matchedUser.role);
+
     showAdminPanel();
     renderOrders();
   } else {
@@ -67,7 +78,10 @@ function handleAdminLogin() {
 
 function handleAdminLogout() {
   localStorage.removeItem(ADMIN_SESSION_KEY);
-  window.location.href = "index.html?logout=success";
+  localStorage.removeItem("fashnta_admin_user");
+  localStorage.removeItem("fashnta_admin_role");
+  alert("Logged out successfully");
+  window.location.href = "index.html";
 }
 
 function checkAdminSession() {
