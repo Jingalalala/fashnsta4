@@ -1,65 +1,180 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>FASHNTA Admin</title>
-  <link rel="stylesheet" href="./style.css">
-  <style>
-    body { font-family: Arial; background:#f5f5f5; margin:0; }
-    .wrap { max-width:1000px; margin:40px auto; padding:20px; }
-    .card { background:white; padding:20px; border-radius:16px; margin-bottom:20px; }
-    input, button, select {
-      padding:10px;
-      border-radius:10px;
-      border:1px solid #ddd;
-      margin:5px 0;
-      width:100%;
-    }
-    button { background:#c9a227; color:white; border:none; cursor:pointer; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { padding:10px; border-bottom:1px solid #eee; }
-    .hidden { display:none; }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Panel V3</title>
+
+  <link rel="stylesheet" href="admin.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
 </head>
 <body>
 
-<div id="loginScreen" class="wrap">
-  <div class="card">
-    <h2>Admin Login</h2>
-    <input id="uid" placeholder="Username">
-    <input id="pass" type="password" placeholder="Password">
-    <button onclick="login()">Login</button>
-    <p id="err" style="color:red;"></p>
-  </div>
-</div>
+  <!-- LOGIN SCREEN -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-box">
+      <h1>Admin Login</h1>
+      <p>Secure Store Backend</p>
 
-<div id="adminPanel" class="wrap hidden">
-  <div class="card">
-    <h2>Admin Panel</h2>
-    <p id="who"></p>
-    <button onclick="logout()">Logout</button>
+      <input type="email" id="loginEmail" placeholder="Admin Email" />
+      <input type="password" id="loginPassword" placeholder="Password" />
+      <button id="loginBtn">Login</button>
+      <p id="loginMsg" class="msg"></p>
+    </div>
   </div>
 
-  <div class="card">
-    <input id="search" placeholder="Search">
-    <button onclick="render()">Refresh</button>
+  <!-- ADMIN APP -->
+  <div id="adminApp" class="admin-app hidden">
 
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Name</th>
-          <th>Product</th>
-          <th>Status</th>
-          <th>Update</th>
-          <th>Delete</th>
-        </tr>
-      </thead>
-      <tbody id="orders"></tbody>
-    </table>
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="brand">FASHNSTA ADMIN</div>
+
+      <nav>
+        <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+        <button class="nav-btn" data-tab="products">Products</button>
+        <button class="nav-btn" data-tab="orders">Orders</button>
+        <button class="nav-btn" data-tab="reports">Reports</button>
+      </nav>
+
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main-content">
+
+      <header class="topbar">
+        <h2 id="pageTitle">Dashboard</h2>
+        <div class="top-actions">
+          <input type="text" id="globalSearch" placeholder="Search products / orders..." />
+          <button id="exportOrdersBtn">Export Orders CSV</button>
+        </div>
+      </header>
+
+      <!-- DASHBOARD -->
+      <section id="dashboard" class="tab-section active">
+        <div class="cards-grid">
+          <div class="card">
+            <h3>Total Revenue</h3>
+            <p id="totalRevenue">₹0</p>
+          </div>
+          <div class="card">
+            <h3>Total Orders</h3>
+            <p id="totalOrders">0</p>
+          </div>
+          <div class="card">
+            <h3>Pending Orders</h3>
+            <p id="pendingOrders">0</p>
+          </div>
+          <div class="card">
+            <h3>Total Products</h3>
+            <p id="totalProducts">0</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Recent Orders</h3>
+          </div>
+          <div id="recentOrdersTable" class="table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- PRODUCTS -->
+      <section id="products" class="tab-section">
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Add / Edit Product</h3>
+          </div>
+
+          <form id="productForm" class="product-form">
+            <input type="hidden" id="productId" />
+
+            <input type="text" id="productName" placeholder="Product Name" required />
+            <input type="text" id="productSlug" placeholder="Slug" />
+            <textarea id="productDescription" placeholder="Description"></textarea>
+
+            <input type="number" id="productPrice" placeholder="Price" required />
+            <input type="number" id="productSalePrice" placeholder="Sale Price" />
+            <input type="text" id="productCategory" placeholder="Category" />
+            <input type="text" id="productImage" placeholder="Image URL" />
+            <input type="number" id="productStock" placeholder="Stock" />
+            <input type="text" id="productSKU" placeholder="SKU" />
+
+            <select id="productStatus">
+              <option value="active">Active</option>
+              <option value="draft">Draft</option>
+              <option value="out_of_stock">Out of Stock</option>
+            </select>
+
+            <label class="check-row">
+              <input type="checkbox" id="productFeatured" />
+              Featured
+            </label>
+
+            <label class="check-row">
+              <input type="checkbox" id="productBestSeller" />
+              Best Seller
+            </label>
+
+            <div class="form-actions">
+              <button type="submit">Save Product</button>
+              <button type="button" id="resetProductBtn" class="secondary-btn">Reset</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Products List</h3>
+          </div>
+          <div id="productsTable" class="table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ORDERS -->
+      <section id="orders" class="tab-section">
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Orders Management</h3>
+          </div>
+          <div id="ordersTable" class="table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- REPORTS -->
+      <section id="reports" class="tab-section">
+        <div class="cards-grid">
+          <div class="card">
+            <h3>Today Revenue</h3>
+            <p id="todayRevenue">₹0</p>
+          </div>
+          <div class="card">
+            <h3>Delivered Orders</h3>
+            <p id="deliveredOrders">0</p>
+          </div>
+          <div class="card">
+            <h3>Cancelled Orders</h3>
+            <p id="cancelledOrders">0</p>
+          </div>
+          <div class="card">
+            <h3>Average Order Value</h3>
+            <p id="avgOrderValue">₹0</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Sales Summary</h3>
+          </div>
+          <div id="salesSummary" class="sales-summary"></div>
+        </div>
+      </section>
+
+    </main>
   </div>
-</div>
 
-<script src="./js/admin.js"></script>
+  <script src="admin.js"></script>
 </body>
 </html>
