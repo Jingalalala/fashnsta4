@@ -2,6 +2,8 @@
  * FASHNTA ADMIN PANEL - ROLE BASED
  *******************************/
 
+const supabase = window.supabaseClient;
+
 // =============================
 // STORAGE KEYS
 // =============================
@@ -9,7 +11,6 @@ const ADMIN_SESSION_KEY = "fashnta_admin_logged_in";
 const ADMIN_USER_KEY = "fashnta_admin_user";
 const ADMIN_ROLE_KEY = "fashnta_admin_role";
 const ORDERS_KEY = "fashnta_orders";
-const supabase = window.supabaseClient;
 
 // =============================
 // DOM
@@ -29,8 +30,6 @@ const totalOrdersEl = document.getElementById("totalOrders");
 const pendingOrdersEl = document.getElementById("pendingOrders");
 const shippedOrdersEl = document.getElementById("shippedOrders");
 const deliveredOrdersEl = document.getElementById("deliveredOrders");
-
-// Optional label in admin.html
 const loggedInAdmin = document.getElementById("loggedInAdmin");
 
 // =============================
@@ -87,7 +86,6 @@ async function handleAdminLogin() {
       return;
     }
 
-    // username -> fake email system
     const email = `${username}@fashnta.com`;
 
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -96,11 +94,10 @@ async function handleAdminLogin() {
     });
 
     if (error || !data?.user) {
-      adminLoginError.textContent = "Invalid Username or Password";
+      adminLoginError.textContent = error?.message || "Invalid Username or Password";
       return;
     }
 
-    // fetch role from admin_users table
     const { data: adminUser, error: roleError } = await supabase
       .from("admin_users")
       .select("username, role, email")
@@ -149,7 +146,7 @@ async function checkAdminSession() {
   try {
     const { data, error } = await supabase.auth.getSession();
 
-    if (error || !data?.session) {
+    if (error || !data || !data.session) {
       showLoginScreen();
       return;
     }
@@ -315,7 +312,7 @@ async function updateOrderStatus(orderId, newStatus) {
     const { error } = await supabase
       .from("orders")
       .update({ status: newStatus })
-      .or(`order_id.eq.${orderId},orderId.eq.${orderId}`);
+      .eq("order_id", orderId);
 
     if (error) throw error;
 
@@ -353,7 +350,7 @@ async function deleteOrder(orderId) {
     const { error } = await supabase
       .from("orders")
       .delete()
-      .or(`order_id.eq.${orderId},orderId.eq.${orderId}`);
+      .eq("order_id", orderId);
 
     if (error) throw error;
 
