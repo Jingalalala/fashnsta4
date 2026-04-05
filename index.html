@@ -325,6 +325,29 @@
       });
     }
   </script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  let clickCount = 0;
+  let timer;
 
+  const trigger = document.getElementById("secretAdminTrigger");
+
+  if (trigger) {
+    trigger.addEventListener("click", () => {
+      clickCount++;
+
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        clickCount = 0;
+      }, 1500);
+
+      if (clickCount >= 5) {
+        clickCount = 0;
+        window.location.href = "admin.html";
+      }
+    });
+  }
+});
+</script>
 </body>
 </html>
