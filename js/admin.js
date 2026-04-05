@@ -1,4 +1,7 @@
-const supabase = window.supabaseClient;
+// -------------------------
+// INIT
+// -------------------------
+const db = window.supabaseClient;
 
 // -------------------------
 // DOM
@@ -18,13 +21,13 @@ const resetProductBtn = document.getElementById("resetProductBtn");
 const globalSearch = document.getElementById("globalSearch");
 const exportOrdersBtn = document.getElementById("exportOrdersBtn");
 
-// Dashboard stats
+// Dashboard
 const totalRevenueEl = document.getElementById("totalRevenue");
 const totalOrdersEl = document.getElementById("totalOrders");
 const pendingOrdersEl = document.getElementById("pendingOrders");
 const totalProductsEl = document.getElementById("totalProducts");
 
-// Reports stats
+// Reports
 const todayRevenueEl = document.getElementById("todayRevenue");
 const deliveredOrdersEl = document.getElementById("deliveredOrders");
 const cancelledOrdersEl = document.getElementById("cancelledOrders");
@@ -50,7 +53,7 @@ loginBtn?.addEventListener("click", async () => {
     return;
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await db.auth.signInWithPassword({
     email,
     password
   });
@@ -63,8 +66,8 @@ loginBtn?.addEventListener("click", async () => {
   const isAdmin = await checkAdmin(data.user.email);
 
   if (!isAdmin) {
-    await supabase.auth.signOut();
-    loginMsg.textContent = "Access denied. Not an admin.";
+    await db.auth.signOut();
+    loginMsg.textContent = "Access denied.";
     return;
   }
 
@@ -72,12 +75,12 @@ loginBtn?.addEventListener("click", async () => {
 });
 
 logoutBtn?.addEventListener("click", async () => {
-  await supabase.auth.signOut();
+  await db.auth.signOut();
   location.reload();
 });
 
 async function checkAdmin(email) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("admin_users")
     .select("*")
     .eq("email", email)
@@ -87,15 +90,13 @@ async function checkAdmin(email) {
 }
 
 async function initAuth() {
-  const { data } = await supabase.auth.getSession();
+  const { data } = await db.auth.getSession();
   const user = data?.session?.user;
 
   if (!user) return;
 
   const isAdmin = await checkAdmin(user.email);
-  if (isAdmin) {
-    showAdmin();
-  }
+  if (isAdmin) showAdmin();
 }
 
 function showAdmin() {
@@ -136,26 +137,17 @@ async function loadAllData() {
 // DASHBOARD
 // -------------------------
 async function loadDashboard() {
-  const { data: orders } = await supabase
-    .from("orders")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const { data: orders } = await db.from("orders").select("*");
+  const { data: products } = await db.from("products").select("*");
 
-  const { data: products } = await supabase
-    .from("products")
-    .select("*");
-
-  const totalRevenue = (orders || []).reduce((sum, o) => sum + Number(o.total || 0), 0);
-  const totalOrders = orders?.length || 0;
-  const pendingOrders = orders?.filter(o => o.status === "Pending").length || 0;
-  const totalProducts = products?.length || 0;
+  const totalRevenue = (orders || []).reduce((s, o) => s + Number(o.total || 0), 0);
 
   totalRevenueEl.textContent = `₹${totalRevenue.toFixed(2)}`;
-  totalOrdersEl.textContent = totalOrders;
-  pendingOrdersEl.textContent = pendingOrders;
-  totalProductsEl.textContent = totalProducts;
+  totalOrdersEl.textContent = orders?.length || 0;
+  pendingOrdersEl.textContent = orders?.filter(o => o.status === "Pending").length || 0;
+  totalProductsEl.textContent = products?.length || 0;
 
-  renderRecentOrders(orders?.slice(0, 5) || []);
+  renderRecentOrders((orders || []).slice(0, 5));
 }
 
 function renderRecentOrders(orders) {
@@ -168,21 +160,19 @@ function renderRecentOrders(orders) {
     <table>
       <thead>
         <tr>
-          <th>Order #</th>
+          <th>Order</th>
           <th>Customer</th>
           <th>Total</th>
           <th>Status</th>
-          <th>Date</th>
         </tr>
       </thead>
       <tbody>
-        ${orders.map(order => `
+        ${orders.map(o => `
           <tr>
-            <td>${order.order_number}</td>
-            <td>${order.customer_name}</td>
-            <td>₹${Number(order.total).toFixed(2)}</td>
-            <td>${order.status}</td>
-            <td>${formatDate(order.created_at)}</td>
+            <td>${o.order_number}</td>
+            <td>${o.customer_name}</td>
+            <td>₹${Number(o.total).toFixed(2)}</td>
+            <td>${o.status}</td>
           </tr>
         `).join("")}
       </tbody>
@@ -197,64 +187,33 @@ productForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const id = document.getElementById("productId").value;
+
   const payload = {
-    name: document.getElementById("productName").value.trim(),
-    slug: document.getElementById("productSlug").value.trim(),
-    description: document.getElementById("productDescription").value.trim(),
-    price: Number(document.getElementById("productPrice").value || 0),
-    sale_price: Number(document.getElementById("productSalePrice").value || 0),
-    category: document.getElementById("productCategory").value.trim(),
-    image_url: document.getElementById("productImage").value.trim(),
-    stock: Number(document.getElementById("productStock").value || 0),
-    sku: document.getElementById("productSKU").value.trim(),
-    status: document.getElementById("productStatus").value,
-    featured: document.getElementById("productFeatured").checked,
-    best_seller: document.getElementById("productBestSeller").checked
+    name: document.getElementById("productName").value,
+    price: Number(document.getElementById("productPrice").value),
+    stock: Number(document.getElementById("productStock").value)
   };
 
-  let error;
-
+  let res;
   if (id) {
-    ({ error } = await supabase.from("products").update(payload).eq("id", id));
+    res = await db.from("products").update(payload).eq("id", id);
   } else {
-    ({ error } = await supabase.from("products").insert([payload]));
+    res = await db.from("products").insert([payload]);
   }
 
-  if (error) {
-    alert("Error saving product: " + error.message);
-    return;
-  }
+  if (res.error) return alert(res.error.message);
 
-  alert("Product saved successfully!");
-  resetProductForm();
-  await loadProducts();
-  await loadDashboard();
+  alert("Saved!");
+  productForm.reset();
+  loadProducts();
+  loadDashboard();
 });
 
-resetProductBtn?.addEventListener("click", resetProductForm);
-
-function resetProductForm() {
-  productForm.reset();
-  document.getElementById("productId").value = "";
-}
-
 async function loadProducts() {
-  const { data, error } = await supabase
-    .from("products")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const { data } = await db.from("products").select("*");
 
-  if (error) {
-    productsTable.innerHTML = "<p>Failed to load products.</p>";
-    return;
-  }
-
-  renderProducts(data || []);
-}
-
-function renderProducts(products) {
-  if (!products.length) {
-    productsTable.innerHTML = "<p>No products found.</p>";
+  if (!data?.length) {
+    productsTable.innerHTML = "<p>No products</p>";
     return;
   }
 
@@ -263,90 +222,40 @@ function renderProducts(products) {
       <thead>
         <tr>
           <th>Name</th>
-          <th>Category</th>
           <th>Price</th>
           <th>Stock</th>
-          <th>Status</th>
-          <th>Actions</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
-        ${products.map(product => `
+        ${data.map(p => `
           <tr>
-            <td>${product.name}</td>
-            <td>${product.category || "-"}</td>
-            <td>₹${Number(product.price).toFixed(2)}</td>
-            <td>${product.stock}</td>
-            <td>${product.status}</td>
+            <td>${p.name}</td>
+            <td>₹${p.price}</td>
+            <td>${p.stock}</td>
             <td>
-              <button class="action-btn edit-btn" onclick="editProduct('${product.id}')">Edit</button>
-              <button class="action-btn delete-btn" onclick="deleteProduct('${product.id}')">Delete</button>
+              <button onclick="deleteProduct('${p.id}')">Delete</button>
             </td>
           </tr>
         `).join("")}
       </tbody>
     </table>
   `;
-
-  window.__productsCache = products;
 }
 
-window.editProduct = function(id) {
-  const p = (window.__productsCache || []).find(x => x.id === id);
-  if (!p) return;
-
-  document.getElementById("productId").value = p.id;
-  document.getElementById("productName").value = p.name || "";
-  document.getElementById("productSlug").value = p.slug || "";
-  document.getElementById("productDescription").value = p.description || "";
-  document.getElementById("productPrice").value = p.price || "";
-  document.getElementById("productSalePrice").value = p.sale_price || "";
-  document.getElementById("productCategory").value = p.category || "";
-  document.getElementById("productImage").value = p.image_url || "";
-  document.getElementById("productStock").value = p.stock || "";
-  document.getElementById("productSKU").value = p.sku || "";
-  document.getElementById("productStatus").value = p.status || "active";
-  document.getElementById("productFeatured").checked = !!p.featured;
-  document.getElementById("productBestSeller").checked = !!p.best_seller;
-
-  document.getElementById("products").scrollIntoView({ behavior: "smooth" });
-};
-
-window.deleteProduct = async function(id) {
-  const ok = confirm("Delete this product?");
-  if (!ok) return;
-
-  const { error } = await supabase.from("products").delete().eq("id", id);
-
-  if (error) {
-    alert("Delete failed: " + error.message);
-    return;
-  }
-
-  await loadProducts();
-  await loadDashboard();
+window.deleteProduct = async (id) => {
+  await db.from("products").delete().eq("id", id);
+  loadProducts();
 };
 
 // -------------------------
 // ORDERS
 // -------------------------
 async function loadOrders() {
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const { data } = await db.from("orders").select("*");
 
-  if (error) {
-    ordersTable.innerHTML = "<p>Failed to load orders.</p>";
-    return;
-  }
-
-  renderOrders(data || []);
-}
-
-function renderOrders(orders) {
-  if (!orders.length) {
-    ordersTable.innerHTML = "<p>No orders found.</p>";
+  if (!data?.length) {
+    ordersTable.innerHTML = "<p>No orders</p>";
     return;
   }
 
@@ -354,177 +263,58 @@ function renderOrders(orders) {
     <table>
       <thead>
         <tr>
-          <th>Order #</th>
+          <th>Order</th>
           <th>Customer</th>
-          <th>Phone</th>
           <th>Total</th>
-          <th>Payment</th>
           <th>Status</th>
-          <th>Date</th>
         </tr>
       </thead>
       <tbody>
-        ${orders.map(order => `
+        ${data.map(o => `
           <tr>
-            <td>${order.order_number}</td>
-            <td>${order.customer_name}</td>
-            <td>${order.phone || "-"}</td>
-            <td>₹${Number(order.total).toFixed(2)}</td>
-            <td>${order.payment_method || "-"}</td>
-            <td>
-              <select class="status-select" onchange="updateOrderStatus('${order.id}', this.value)">
-                ${["Pending","Confirmed","Packed","Shipped","Out for Delivery","Delivered","Cancelled"].map(status => `
-                  <option value="${status}" ${order.status === status ? "selected" : ""}>${status}</option>
-                `).join("")}
-              </select>
-            </td>
-            <td>${formatDate(order.created_at)}</td>
+            <td>${o.order_number}</td>
+            <td>${o.customer_name}</td>
+            <td>₹${o.total}</td>
+            <td>${o.status}</td>
           </tr>
         `).join("")}
       </tbody>
     </table>
   `;
-
-  window.__ordersCache = orders;
 }
-
-window.updateOrderStatus = async function(id, status) {
-  const { error } = await supabase
-    .from("orders")
-    .update({ status })
-    .eq("id", id);
-
-  if (error) {
-    alert("Failed to update order status.");
-    return;
-  }
-
-  await loadOrders();
-  await loadDashboard();
-  await loadReports();
-};
 
 // -------------------------
 // REPORTS
 // -------------------------
 async function loadReports() {
-  const { data: orders } = await supabase
-    .from("orders")
-    .select("*");
+  const { data } = await db.from("orders").select("*");
 
-  const allOrders = orders || [];
+  const total = (data || []).reduce((s, o) => s + Number(o.total || 0), 0);
 
-  const today = new Date().toISOString().slice(0, 10);
-
-  const todayOrders = allOrders.filter(o =>
-    (o.created_at || "").slice(0, 10) === today
-  );
-
-  const todayRevenue = todayOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
-  const delivered = allOrders.filter(o => o.status === "Delivered").length;
-  const cancelled = allOrders.filter(o => o.status === "Cancelled").length;
-  const totalRevenue = allOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
-  const avgOrderValue = allOrders.length ? totalRevenue / allOrders.length : 0;
-
-  todayRevenueEl.textContent = `₹${todayRevenue.toFixed(2)}`;
-  deliveredOrdersEl.textContent = delivered;
-  cancelledOrdersEl.textContent = cancelled;
-  avgOrderValueEl.textContent = `₹${avgOrderValue.toFixed(2)}`;
-
-  salesSummaryEl.innerHTML = `
-    <p><strong>Total Revenue:</strong> ₹${totalRevenue.toFixed(2)}</p>
-    <p><strong>Total Orders:</strong> ${allOrders.length}</p>
-    <p><strong>Delivered Orders:</strong> ${delivered}</p>
-    <p><strong>Cancelled Orders:</strong> ${cancelled}</p>
-    <p><strong>Average Order Value:</strong> ₹${avgOrderValue.toFixed(2)}</p>
-  `;
+  todayRevenueEl.textContent = `₹${total}`;
+  deliveredOrdersEl.textContent = data?.filter(o => o.status === "Delivered").length || 0;
+  cancelledOrdersEl.textContent = data?.filter(o => o.status === "Cancelled").length || 0;
+  avgOrderValueEl.textContent = `₹${(total / (data?.length || 1)).toFixed(2)}`;
 }
-
-// -------------------------
-// SEARCH
-// -------------------------
-globalSearch?.addEventListener("input", () => {
-  const query = globalSearch.value.trim().toLowerCase();
-
-  // Filter products
-  const filteredProducts = (window.__productsCache || []).filter(p =>
-    (p.name || "").toLowerCase().includes(query) ||
-    (p.category || "").toLowerCase().includes(query) ||
-    (p.sku || "").toLowerCase().includes(query)
-  );
-
-  renderProducts(filteredProducts);
-
-  // Filter orders
-  const filteredOrders = (window.__ordersCache || []).filter(o =>
-    (o.order_number || "").toLowerCase().includes(query) ||
-    (o.customer_name || "").toLowerCase().includes(query) ||
-    (o.phone || "").toLowerCase().includes(query)
-  );
-
-  renderOrders(filteredOrders);
-});
 
 // -------------------------
 // EXPORT CSV
 // -------------------------
 exportOrdersBtn?.addEventListener("click", async () => {
-  const { data: orders, error } = await supabase
-    .from("orders")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const { data } = await db.from("orders").select("*");
 
-  if (error || !orders?.length) {
-    alert("No orders to export.");
-    return;
-  }
+  if (!data?.length) return alert("No orders");
 
-  const headers = [
-    "Order Number",
-    "Customer Name",
-    "Phone",
-    "Email",
-    "Total",
-    "Payment Method",
-    "Status",
-    "Date"
-  ];
+  const csv = data.map(o =>
+    `${o.order_number},${o.customer_name},${o.total},${o.status}`
+  ).join("\n");
 
-  const rows = orders.map(o => [
-    o.order_number,
-    o.customer_name,
-    o.phone || "",
-    o.email || "",
-    o.total || 0,
-    o.payment_method || "",
-    o.status || "",
-    formatDate(o.created_at)
-  ]);
-
-  const csvContent = [headers, ...rows]
-    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
-    .join("\n");
-
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "orders-report.csv";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "orders.csv";
+  a.click();
 });
 
-// -------------------------
-// HELPERS
-// -------------------------
-function formatDate(dateString) {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleString();
-}
-
-// -------------------------
-// INIT
 // -------------------------
 initAuth();
