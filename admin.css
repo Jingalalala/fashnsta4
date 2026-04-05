@@ -468,3 +468,52 @@ table th {
   width: 16px;
   height: 16px;
 }
+/* ===========================
+   PRODUCT FORM CLEAN FIXES
+   =========================== */
+
+.price-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.checkbox-group {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.check-row input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+#productCategory,
+#productStatus,
+#productPrice,
+#productSalePrice {
+  max-width: 100%;
+}
+
+#productPrice,
+#productSalePrice {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .price-row {
+    grid-template-columns: 1fr;
+  }
+}
