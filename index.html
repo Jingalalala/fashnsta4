@@ -331,5 +331,11 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 });
 </script>
+  <script>
+const params = new URLSearchParams(window.location.search);
+if (params.get("logout") === "success") {
+  alert("Logged out successfully");
+}
+</script>
 </body>
 </html>
