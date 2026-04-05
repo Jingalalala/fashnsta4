@@ -5,9 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Admin Panel V3</title>
 
+  <!-- CSS -->
   <link rel="stylesheet" href="admin.css" />
+
+  <!-- Supabase CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase.js"></script>
+
+  <!-- Your Supabase Config -->
+  <script src="js/supabase.js"></script>
 </head>
 <body>
 
@@ -29,14 +34,16 @@
 
     <!-- SIDEBAR -->
     <aside class="sidebar">
-      <div class="brand">FASHNSTA ADMIN</div>
+      <div>
+        <div class="brand">FASHNSTA ADMIN</div>
 
-      <nav>
-        <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
-        <button class="nav-btn" data-tab="products">Products</button>
-        <button class="nav-btn" data-tab="orders">Orders</button>
-        <button class="nav-btn" data-tab="reports">Reports</button>
-      </nav>
+        <nav>
+          <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+          <button class="nav-btn" data-tab="products">Products</button>
+          <button class="nav-btn" data-tab="orders">Orders</button>
+          <button class="nav-btn" data-tab="reports">Reports</button>
+        </nav>
+      </div>
 
       <button id="logoutBtn" class="logout-btn">Logout</button>
     </aside>
@@ -175,6 +182,7 @@
     </main>
   </div>
 
-  <script src="admin.js"></script>
+  <!-- Admin JS -->
+  <script src="js/admin.js"></script>
 </body>
 </html>
