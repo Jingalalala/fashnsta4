@@ -307,47 +307,28 @@
   <!-- =========================
        SECRET ADMIN LOGIN
   ========================= -->
-  <script>
-    let adminClickCount = 0;
-    const secretTrigger = document.getElementById("secretAdminTrigger");
-
-    if (secretTrigger) {
-      secretTrigger.addEventListener("click", () => {
-        adminClickCount++;
-
-        if (adminClickCount >= 5) {
-          window.location.href = "admin-login.html";
-        }
-
-        setTimeout(() => {
-          adminClickCount = 0;
-        }, 3000);
-      });
-    }
-  </script>
-<script>
-document.addEventListener("DOMContentLoaded", () => {
+ <script>
+document.addEventListener("DOMContentLoaded", function () {
   let clickCount = 0;
-  let timer;
+  let clickTimer;
 
-  const trigger = document.getElementById("secretAdminTrigger");
+  const secretTrigger = document.getElementById("secretAdminTrigger");
 
-  if (trigger) {
-    trigger.addEventListener("click", () => {
-      clickCount++;
+  if (!secretTrigger) return;
 
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        clickCount = 0;
-      }, 1500);
+  secretTrigger.addEventListener("click", function () {
+    clickCount++;
 
-      if (clickCount >= 5) {
-        clickCount = 0;
-        window.location.href = "admin.html";
-      }
-    });
-  }
+    clearTimeout(clickTimer);
+    clickTimer = setTimeout(function () {
+      clickCount = 0;
+    }, 1500);
+
+    if (clickCount >= 5) {
+      clickCount = 0;
+      window.location.href = "admin.html";
+    }
+  });
 });
-</script>
 </body>
 </html>
