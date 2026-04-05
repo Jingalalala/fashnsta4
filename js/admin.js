@@ -63,7 +63,7 @@ let currentUser = null;
 // AUTH
 // ===============================
 loginBtn?.addEventListener("click", async () => {
-  const email = document.getElementById("loginEmail").value.trim();
+  const email = document.getElementById("loginEmail").value.trim().toLowerCase();
   const password = document.getElementById("loginPassword").value.trim();
 
   loginMsg.textContent = "";
@@ -82,14 +82,21 @@ loginBtn?.addEventListener("click", async () => {
       password
     });
 
+    console.log("Login response:", data, error);
+
     if (error) {
-      loginMsg.textContent = error.message;
+      loginMsg.textContent = error.message || "Invalid login credentials.";
       return;
     }
 
     currentUser = data?.user || null;
 
-    const isAdmin = await checkAdmin(data.user.email);
+    if (!currentUser?.email) {
+      loginMsg.textContent = "User email not found.";
+      return;
+    }
+
+    const isAdmin = await checkAdmin(currentUser.email);
 
     if (!isAdmin) {
       await db.auth.signOut();
@@ -99,7 +106,7 @@ loginBtn?.addEventListener("click", async () => {
 
     showAdmin();
   } catch (err) {
-    console.error(err);
+    console.error("Login error:", err);
     loginMsg.textContent = "Login failed.";
   } finally {
     loginBtn.disabled = false;
@@ -113,13 +120,22 @@ logoutBtn?.addEventListener("click", async () => {
 });
 
 async function checkAdmin(email) {
+  const cleanEmail = String(email || "").trim().toLowerCase();
+
   const { data, error } = await db
     .from("admin_users")
-    .select("*")
-    .eq("email", email)
-    .maybeSingle();
+    .select("email, role")
+    .ilike("email", cleanEmail);
 
-  return !!data && !error;
+  console.log("Admin check data:", data);
+  console.log("Admin check error:", error);
+
+  if (error) return false;
+  if (!data || !data.length) return false;
+
+  return data.some(
+    user => String(user.email || "").trim().toLowerCase() === cleanEmail
+  );
 }
 
 async function initAuth() {
