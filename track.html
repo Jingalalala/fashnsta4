@@ -1,0 +1,10 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Fashnsta — Track</title>
+<link rel="stylesheet" href="style.css">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body><header class="navbar"><div class="nav-container"><a href="index.html"><img src="assets/logo/logo.png" class="logo" alt="Fashnsta"></a></div></header>
+<main class="track-page"><section class="track-shell luxury-card"><div class="section-head center"><p class="eyebrow">Track Order</p><h1>Follow Your Luxury</h1></div>
+<form id="trackForm" class="track-form"><input type="text" id="orderIdInput" placeholder="Enter Internal Order ID (UUID)" required><button type="submit" class="btn gold">Track</button></form>
+<div id="orderDetails" class="order-details-card" style="display:none;"><div class="order-top"><h2>Order <span id="displayOrderId"></span></h2><p><span id="displayDate"></span> • <span id="displayTotal"></span></p></div>
+<div class="status-timeline"><div class="status-step" id="step-Pending"><div class="status-dot"></div><span>Pending</span></div><div class="status-step" id="step-Processing"><div class="status-dot"></div><span>Processing</span></div><div class="status-step" id="step-Shipped"><div class="status-dot"></div><span>Shipped</span></div><div class="status-step" id="step-Delivered"><div class="status-dot"></div><span>Delivered</span></div></div>
+<p id="cancelWarning" class="cancel-warning" style="display:none;">This order was cancelled.</p><div class="track-actions"><a id="downloadInvoiceBtn" href="#" class="btn ghost">View Invoice</a></div></div></section></main>
+<div id="toast" class="toast"></div><script src="js/config.js"></script><script src="js/supabase-api.js"></script><script src="js/track.js"></script></body></html>

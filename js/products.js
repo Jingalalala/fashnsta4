@@ -1,0 +1,1 @@
+async function loadProducts(){const products=await fetchProducts();allProductsCache=products;renderProducts(products);updateCart();}loadProducts();
