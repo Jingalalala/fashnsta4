@@ -67,7 +67,7 @@ function handleAdminLogin() {
 
 function handleAdminLogout() {
   localStorage.removeItem(ADMIN_SESSION_KEY);
-  showLoginScreen();
+  window.location.href = "index.html?logout=success";
 }
 
 function checkAdminSession() {
