@@ -2,7 +2,7 @@
  * FASHNTA ADMIN PANEL - ROLE BASED
  *******************************/
 
-const supabase = window.supabaseClient;
+
 
 // =============================
 // STORAGE KEYS
