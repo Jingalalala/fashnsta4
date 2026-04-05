@@ -137,7 +137,32 @@ async function checkAdmin(email) {
     user => String(user.email || "").trim().toLowerCase() === cleanEmail
   );
 }
+async function loadCategories() {
+  const select = document.getElementById("productCategory");
 
+  const { data, error } = await db
+    .from("categories")
+    .select("*")
+    .order("name");
+
+  if (error) {
+    console.error("Category load error:", error);
+    select.innerHTML = "<option>Error loading</option>";
+    return;
+  }
+
+  if (!data.length) {
+    select.innerHTML = "<option>No categories</option>";
+    return;
+  }
+
+  select.innerHTML = `
+    <option value="">Select Category</option>
+    ${data.map(cat => `
+      <option value="${cat.name}">${cat.name}</option>
+    `).join("")}
+  `;
+}
 async function initAuth() {
   try {
     const { data } = await db.auth.getSession();
