@@ -1,105 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
   <title>FASHNTA Admin</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="./style.css">
+  <style>
+    body { font-family: Arial; background:#f5f5f5; margin:0; }
+    .wrap { max-width:1000px; margin:40px auto; padding:20px; }
+    .card { background:white; padding:20px; border-radius:16px; margin-bottom:20px; }
+    input, button, select {
+      padding:10px;
+      border-radius:10px;
+      border:1px solid #ddd;
+      margin:5px 0;
+      width:100%;
+    }
+    button { background:#c9a227; color:white; border:none; cursor:pointer; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { padding:10px; border-bottom:1px solid #eee; }
+    .hidden { display:none; }
+  </style>
 </head>
-<body class="admin-body">
+<body>
 
-  <!-- LOGIN SCREEN -->
-  <section id="adminLoginScreen" class="admin-login-screen">
-    <div class="admin-login-card">
-      <h1>FASHNTA ADMIN</h1>
-      <p>Authorized Access Only</p>
+<div id="loginScreen" class="wrap">
+  <div class="card">
+    <h2>Admin Login</h2>
+    <input id="uid" placeholder="Username">
+    <input id="pass" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <p id="err" style="color:red;"></p>
+  </div>
+</div>
 
-      <input type="text" id="adminUid" placeholder="Enter UID" />
-      <input type="password" id="adminPassword" placeholder="Enter Password" />
-      <button id="adminLoginBtn">Login</button>
+<div id="adminPanel" class="wrap hidden">
+  <div class="card">
+    <h2>Admin Panel</h2>
+    <p id="who"></p>
+    <button onclick="logout()">Logout</button>
+  </div>
 
-      <p id="adminLoginError" class="admin-error"></p>
-    </div>
-  </section>
+  <div class="card">
+    <input id="search" placeholder="Search">
+    <button onclick="render()">Refresh</button>
 
-  <!-- ADMIN PANEL -->
-  <section id="adminPanel" class="admin-panel hidden">
-    <header class="admin-header">
-      <div>
-        <h1>Admin Dashboard</h1>
-        <p>Manage Orders</p>
-      </div>
-      <button id="adminLogoutBtn" class="logout-btn">Logout</button>
-    </header>
-
-    <div class="admin-stats">
-      <div class="stat-card">
-        <h3>Total Orders</h3>
-        <p id="totalOrders">0</p>
-      </div>
-      <div class="stat-card">
-        <h3>Pending</h3>
-        <p id="pendingOrders">0</p>
-      </div>
-      <div class="stat-card">
-        <h3>Shipped</h3>
-        <p id="shippedOrders">0</p>
-      </div>
-      <div class="stat-card">
-        <h3>Delivered</h3>
-        <p id="deliveredOrders">0</p>
-      </div>
-    </div>
-
-    <div class="admin-toolbar">
-      <input type="text" id="searchOrders" placeholder="Search by order no / customer / product..." />
-      <button id="refreshOrdersBtn">Refresh</button>
-    </div>
-
-    <div class="orders-table-wrap">
-      <table class="orders-table">
-        <thead>
-          <tr>
-            <th>Order No</th>
-            <th>Customer</th>
-            <th>Phone</th>
-            <th>Product</th>
-            <th>Size</th>
-            <th>Qty</th>
-            <th>Total</th>
-            <th>Address</th>
-            <th>Status</th>
-            <th>Date</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="ordersTableBody">
-          <tr>
-            <td colspan="11" class="empty-row">No orders found</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
- <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<script>
-const { createClient } = window.supabase;
-window.sb = createClient(
-  "https://aqecgofdcngooqcxdieu.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxZWNnb2ZkY25nb29xY3hkaWV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNTAyNDQsImV4cCI6MjA5MDYyNjI0NH0.HbsoNGvT6i3lERkskdrJfV1f4WLKT8dzRfaXtPJnJ7k"
-
-);
-
-console.log("Supabase client test:", window.sb);
-console.log("Supabase auth test:", window.sb.auth);
-</script>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Product</th>
+          <th>Status</th>
+          <th>Update</th>
+          <th>Delete</th>
+        </tr>
+      </thead>
+      <tbody id="orders"></tbody>
+    </table>
+  </div>
+</div>
 
 <script src="./js/admin.js"></script>
-</body>
-</html>
-</body>
-</html>
 </body>
 </html>
