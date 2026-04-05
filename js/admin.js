@@ -1,22 +1,18 @@
 /*******************************
- * FASHNTA ADMIN PANEL
+ * FASHNTA ADMIN PANEL - ROLE BASED
  *******************************/
 
 // =============================
-// 🔐 CHANGE THESE
+// STORAGE KEYS
 // =============================
-const ADMIN_USERS = [
-  { uid: "fashnta-admin", password: "fashnta@2026", role: "owner" },
-  { uid: "staff1", password: "staff123", role: "staff" },
-  { uid: "staff2", password: "staff456", role: "staff" },
-  { uid: "manager1", password: "manager789", role: "manager" }
-];
-
-// localStorage keys
 const ADMIN_SESSION_KEY = "fashnta_admin_logged_in";
+const ADMIN_USER_KEY = "fashnta_admin_user";
+const ADMIN_ROLE_KEY = "fashnta_admin_role";
 const ORDERS_KEY = "fashnta_orders";
 
+// =============================
 // DOM
+// =============================
 const loginScreen = document.getElementById("adminLoginScreen");
 const adminPanel = document.getElementById("adminPanel");
 const adminUidInput = document.getElementById("adminUid");
@@ -33,11 +29,14 @@ const pendingOrdersEl = document.getElementById("pendingOrders");
 const shippedOrdersEl = document.getElementById("shippedOrders");
 const deliveredOrdersEl = document.getElementById("deliveredOrders");
 
+// Optional label in admin.html
+const loggedInAdmin = document.getElementById("loggedInAdmin");
+
 // =============================
 // INIT
 // =============================
-document.addEventListener("DOMContentLoaded", () => {
-  checkAdminSession();
+document.addEventListener("DOMContentLoaded", async () => {
+  await checkAdminSession();
 
   adminLoginBtn?.addEventListener("click", handleAdminLogin);
   adminLogoutBtn?.addEventListener("click", handleAdminLogout);
@@ -54,156 +53,320 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =============================
+// AUTH HELPERS
+// =============================
+function getCurrentRole() {
+  return localStorage.getItem(ADMIN_ROLE_KEY) || "staff";
+}
+
+function getCurrentUser() {
+  return localStorage.getItem(ADMIN_USER_KEY) || "Admin";
+}
+
+function canDeleteOrders() {
+  return ["owner"].includes(getCurrentRole());
+}
+
+function canUpdateOrders() {
+  return ["owner", "manager", "staff"].includes(getCurrentRole());
+}
+
+// =============================
 // LOGIN
 // =============================
-function handleAdminLogin() {
-  const uid = adminUidInput.value.trim();
-  const password = adminPasswordInput.value.trim();
+async function handleAdminLogin() {
+  try {
+    const username = adminUidInput?.value.trim();
+    const password = adminPasswordInput?.value.trim();
 
-  const matchedUser = ADMIN_USERS.find(
-    user => user.uid === uid && user.password === password
-  );
+    adminLoginError.textContent = "";
 
-  if (matchedUser) {
+    if (!username || !password) {
+      adminLoginError.textContent = "Enter username and password";
+      return;
+    }
+
+    // username -> fake email system
+    const email = `${username}@fashnta.com`;
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error || !data?.user) {
+      adminLoginError.textContent = "Invalid Username or Password";
+      return;
+    }
+
+    // fetch role from admin_users table
+    const { data: adminUser, error: roleError } = await supabase
+      .from("admin_users")
+      .select("username, role, email")
+      .eq("email", email)
+      .single();
+
+    if (roleError || !adminUser) {
+      adminLoginError.textContent = "Admin access not assigned";
+      await supabase.auth.signOut();
+      return;
+    }
+
     localStorage.setItem(ADMIN_SESSION_KEY, "true");
-    localStorage.setItem("fashnta_admin_user", matchedUser.uid);
-    localStorage.setItem("fashnta_admin_role", matchedUser.role);
+    localStorage.setItem(ADMIN_USER_KEY, adminUser.username || username);
+    localStorage.setItem(ADMIN_ROLE_KEY, adminUser.role || "staff");
 
     showAdminPanel();
-    renderOrders();
-  } else {
-    adminLoginError.textContent = "Invalid UID or Password";
+    await renderOrders();
+  } catch (err) {
+    console.error("Login error:", err);
+    adminLoginError.textContent = "Login failed. Try again.";
   }
 }
 
-function handleAdminLogout() {
+// =============================
+// LOGOUT
+// =============================
+async function handleAdminLogout() {
+  try {
+    await supabase.auth.signOut();
+  } catch (err) {
+    console.warn("Logout warning:", err);
+  }
+
   localStorage.removeItem(ADMIN_SESSION_KEY);
-  localStorage.removeItem("fashnta_admin_user");
-  localStorage.removeItem("fashnta_admin_role");
-  alert("Logged out successfully");
+  localStorage.removeItem(ADMIN_USER_KEY);
+  localStorage.removeItem(ADMIN_ROLE_KEY);
+
   window.location.href = "index.html";
 }
 
-function checkAdminSession() {
-  const isLoggedIn = localStorage.getItem(ADMIN_SESSION_KEY) === "true";
+// =============================
+// SESSION CHECK
+// =============================
+async function checkAdminSession() {
+  try {
+    const { data, error } = await supabase.auth.getSession();
 
-  if (isLoggedIn) {
+    if (error || !data?.session) {
+      showLoginScreen();
+      return;
+    }
+
+    const user = data.session.user;
+    const email = user.email;
+
+    const { data: adminUser, error: roleError } = await supabase
+      .from("admin_users")
+      .select("username, role, email")
+      .eq("email", email)
+      .single();
+
+    if (roleError || !adminUser) {
+      await supabase.auth.signOut();
+      showLoginScreen();
+      return;
+    }
+
+    localStorage.setItem(ADMIN_SESSION_KEY, "true");
+    localStorage.setItem(ADMIN_USER_KEY, adminUser.username || "Admin");
+    localStorage.setItem(ADMIN_ROLE_KEY, adminUser.role || "staff");
+
     showAdminPanel();
-    renderOrders();
-  } else {
+    await renderOrders();
+  } catch (err) {
+    console.error("Session check error:", err);
     showLoginScreen();
   }
 }
 
+// =============================
+// UI
+// =============================
 function showAdminPanel() {
-  loginScreen.classList.add("hidden");
-  adminPanel.classList.remove("hidden");
+  loginScreen?.classList.add("hidden");
+  adminPanel?.classList.remove("hidden");
+
+  if (loggedInAdmin) {
+    loggedInAdmin.textContent = `Logged in as: ${getCurrentUser()} (${getCurrentRole()})`;
+  }
 }
 
 function showLoginScreen() {
-  loginScreen.classList.remove("admin-hidden");
-  adminPanel.classList.add("hidden");
+  adminPanel?.classList.add("hidden");
+  loginScreen?.classList.remove("hidden");
 }
 
 // =============================
-// ORDERS
+// ORDER DATA
 // =============================
-function getOrders() {
-  const orders = JSON.parse(localStorage.getItem(ORDERS_KEY)) || [];
-  return [...orders].reverse(); // latest first
+async function getOrders() {
+  try {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn("Supabase orders fetch failed, using localStorage:", err);
+
+    const localOrders = JSON.parse(localStorage.getItem(ORDERS_KEY) || "[]");
+    return Array.isArray(localOrders) ? localOrders : [];
+  }
 }
 
-function saveOrders(orders) {
+function saveOrdersLocal(orders) {
   localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
 }
 
-function renderOrders() {
-  const searchValue = searchOrders.value.trim().toLowerCase();
-  let orders = getOrders();
+// =============================
+// RENDER ORDERS
+// =============================
+async function renderOrders() {
+  if (!ordersTableBody) return;
 
-  if (searchValue) {
-    orders = orders.filter(order =>
-      (order.orderNumber || order.orderId || order.order_number || '').toLowerCase().includes(searchValue) ||
-      (order.name || order.customerName || '').toLowerCase().includes(searchValue) ||
-      (order.phone || '').toLowerCase().includes(searchValue) ||
-      (order.productName || (order.items||[]).map(i=>i.name).join(', ') || '').toLowerCase().includes(searchValue)
+  const query = searchOrders?.value?.toLowerCase() || "";
+  const orders = await getOrders();
+
+  const filtered = orders.filter((order) => {
+    return (
+      String(order.order_id || order.orderId || "").toLowerCase().includes(query) ||
+      String(order.customer_name || order.customerName || order.name || "").toLowerCase().includes(query) ||
+      String(order.product_name || order.productName || order.product || "").toLowerCase().includes(query) ||
+      String(order.status || "").toLowerCase().includes(query)
     );
-  }
+  });
 
-  updateStats(getOrders());
+  ordersTableBody.innerHTML = "";
 
-  if (!orders.length) {
+  if (!filtered.length) {
     ordersTableBody.innerHTML = `
       <tr>
-        <td colspan="11" class="empty-row">No orders found</td>
+        <td colspan="7" style="text-align:center;">No orders found</td>
       </tr>
     `;
+    updateStats([]);
     return;
   }
 
-  ordersTableBody.innerHTML = orders.map((order, index) => `
-    <tr>
-      <td>${order.orderNumber || order.orderId || order.order_number || "-"}</td>
-      <td>${order.name || order.customerName || "-"}</td>
-      <td>${order.phone || "-"}</td>
-      <td>${order.productName || (order.items||[]).map(i=>i.name).join(", ") || "-"}</td>
-      <td>${order.size || (order.items?.[0]?.size) || "-"}</td>
-      <td>${order.quantity || (order.items||[]).reduce((s,i)=>s+Number(i.qty||1),0) || 1}</td>
-      <td>₹${order.total || 0}</td>
-      <td>${order.address || "-"}</td>
+  filtered.forEach((order) => {
+    const orderId = order.order_id || order.orderId || "N/A";
+    const customer = order.customer_name || order.customerName || order.name || "N/A";
+    const product = order.product_name || order.productName || order.product || "N/A";
+    const total = order.total || order.amount || 0;
+    const status = order.status || "Pending";
+
+    const updateDisabled = canUpdateOrders() ? "" : "disabled";
+    const deleteDisabled = canDeleteOrders() ? "" : "disabled";
+
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${orderId}</td>
+      <td>${customer}</td>
+      <td>${product}</td>
+      <td>₹${total}</td>
+      <td>${status}</td>
       <td>
-        <select onchange="updateOrderStatus('${order.orderNumber || order.orderId || order.order_number || order.id}', this.value)" class="status-select">
-          <option value="Pending" ${order.status === "Pending" ? "selected" : ""}>Pending</option>
-          <option value="Processing" ${order.status === "Processing" ? "selected" : ""}>Processing</option>
-          <option value="Shipped" ${order.status === "Shipped" ? "selected" : ""}>Shipped</option>
-          <option value="Delivered" ${order.status === "Delivered" ? "selected" : ""}>Delivered</option>
-          <option value="Cancelled" ${order.status === "Cancelled" ? "selected" : ""}>Cancelled</option>
+        <select ${updateDisabled} onchange="updateOrderStatus('${orderId}', this.value)">
+          <option value="Pending" ${status === "Pending" ? "selected" : ""}>Pending</option>
+          <option value="Shipped" ${status === "Shipped" ? "selected" : ""}>Shipped</option>
+          <option value="Delivered" ${status === "Delivered" ? "selected" : ""}>Delivered</option>
+          <option value="Cancelled" ${status === "Cancelled" ? "selected" : ""}>Cancelled</option>
         </select>
       </td>
-      <td>${formatDate(order.date)}</td>
       <td>
-        <div class="action-buttons">
-          <button class="delete-btn" onclick="deleteOrder('${order.orderNumber || order.orderId || order.order_number || order.id}')">Delete</button>
-        </div>
+        <button class="action-btn" ${deleteDisabled} onclick="deleteOrder('${orderId}')">
+          Delete
+        </button>
       </td>
-    </tr>
-  `).join("");
-}
+    `;
 
-function updateOrderStatus(orderNumber, newStatus) {
-  const originalOrders = JSON.parse(localStorage.getItem(ORDERS_KEY)) || [];
-
-  const updatedOrders = originalOrders.map(order => {
-    if ((order.orderNumber || order.orderId || order.order_number || order.id) === orderNumber) {
-      return { ...order, status: newStatus };
-    }
-    return order;
+    ordersTableBody.appendChild(row);
   });
 
-  saveOrders(updatedOrders);
-  renderOrders();
+  updateStats(orders);
 }
 
-function deleteOrder(orderNumber) {
-  const confirmDelete = confirm(`Delete order ${orderNumber}?`);
+// =============================
+// STATS
+// =============================
+function updateStats(orders) {
+  if (totalOrdersEl) totalOrdersEl.textContent = orders.length;
+  if (pendingOrdersEl) pendingOrdersEl.textContent = orders.filter(o => (o.status || "Pending") === "Pending").length;
+  if (shippedOrdersEl) shippedOrdersEl.textContent = orders.filter(o => o.status === "Shipped").length;
+  if (deliveredOrdersEl) deliveredOrdersEl.textContent = orders.filter(o => o.status === "Delivered").length;
+}
+
+// =============================
+// UPDATE ORDER STATUS
+// =============================
+async function updateOrderStatus(orderId, newStatus) {
+  if (!canUpdateOrders()) {
+    alert("You do not have permission to update orders.");
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: newStatus })
+      .or(`order_id.eq.${orderId},orderId.eq.${orderId}`);
+
+    if (error) throw error;
+
+    await renderOrders();
+  } catch (err) {
+    console.warn("Supabase update failed, trying localStorage:", err);
+
+    const orders = JSON.parse(localStorage.getItem(ORDERS_KEY) || "[]");
+    const updated = orders.map(order => {
+      const id = order.order_id || order.orderId;
+      if (id === orderId) {
+        return { ...order, status: newStatus };
+      }
+      return order;
+    });
+
+    saveOrdersLocal(updated);
+    await renderOrders();
+  }
+}
+
+// =============================
+// DELETE ORDER
+// =============================
+async function deleteOrder(orderId) {
+  if (!canDeleteOrders()) {
+    alert("Only owner can delete orders.");
+    return;
+  }
+
+  const confirmDelete = confirm(`Delete order ${orderId}?`);
   if (!confirmDelete) return;
 
-  const originalOrders = JSON.parse(localStorage.getItem(ORDERS_KEY)) || [];
-  const updatedOrders = originalOrders.filter(order => (order.orderNumber || order.orderId || order.order_number || order.id) !== orderNumber);
+  try {
+    const { error } = await supabase
+      .from("orders")
+      .delete()
+      .or(`order_id.eq.${orderId},orderId.eq.${orderId}`);
 
-  saveOrders(updatedOrders);
-  renderOrders();
-}
+    if (error) throw error;
 
-function updateStats(orders) {
-  totalOrdersEl.textContent = orders.length;
-  pendingOrdersEl.textContent = orders.filter(o => o.status === "Pending").length;
-  shippedOrdersEl.textContent = orders.filter(o => o.status === "Shipped").length;
-  deliveredOrdersEl.textContent = orders.filter(o => o.status === "Delivered").length;
-}
+    await renderOrders();
+  } catch (err) {
+    console.warn("Supabase delete failed, trying localStorage:", err);
 
-function formatDate(dateString) {
-  if (!dateString) return "-";
-  const date = new Date(dateString);
-  return date.toLocaleString();
+    const orders = JSON.parse(localStorage.getItem(ORDERS_KEY) || "[]");
+    const updated = orders.filter(order => {
+      const id = order.order_id || order.orderId;
+      return id !== orderId;
+    });
+
+    saveOrdersLocal(updated);
+    await renderOrders();
+  }
 }
