@@ -1,3 +1,12 @@
 async function fetchOrderInvoice(orderId){const {data,error}=await window.supabaseClient.from("orders").select("*").eq("id",orderId).single();if(error){console.error(error);return null;}return data;}
 async function initInvoice(){const params=new URLSearchParams(window.location.search);const orderId=params.get("order");if(!orderId){loadingMsg.textContent="No order selected.";return;}const order=await fetchOrderInvoice(orderId);if(!order){loadingMsg.textContent="Invoice not found.";return;}const items=order.items||[];const subtotal=items.reduce((s,i)=>s+(Number(i.price||0)*Number(i.qty||0)),0);const shipping=subtotal>1499||subtotal===0?0:99;invName.textContent=order.name||"-";invAddress.textContent=order.address||"-";invEmail.textContent=order.email||"-";invPhone.textContent=order.phone||"-";invOrderNo.textContent=order.order_number||order.id;invInvoiceNo.textContent=order.invoice_number||"-";invDate.textContent=order.date||"-";invPayment.textContent=order.payment||"-";invStatus.textContent=order.status||"-";invoiceItems.innerHTML=items.map(item=>`<tr><td>${item.name}</td><td class="right">₹${Number(item.price||0).toLocaleString("en-IN")}</td><td class="right">${item.qty||1}</td><td class="right">₹${(Number(item.price||0)*Number(item.qty||1)).toLocaleString("en-IN")}</td></tr>`).join("");invSubtotal.textContent=`₹${subtotal.toLocaleString("en-IN")}`;invShipping.textContent=`₹${shipping.toLocaleString("en-IN")}`;invTotal.textContent=`₹${Number(order.total||0).toLocaleString("en-IN")}`;loadingMsg.style.display="none";invoiceContent.style.display="block";}
+function addToCart(id) {
+  let cart = JSON.parse(localStorage.getItem("cart")) || [];
+
+  cart.push(id);
+
+  localStorage.setItem("cart", JSON.stringify(cart));
+
+  alert("Added to cart");
+}
 initInvoice();
