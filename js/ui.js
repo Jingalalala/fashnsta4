@@ -1,43 +1,33 @@
-function formatPrice(p){
-  return `₹${Number(p || 0).toLocaleString("en-IN")}`;
-}
-
-function normalizeProduct(p) {
-  return {
-    id: p.id,
-    name: p.name || "Untitled",
-    price: p.price || 0,
-    sale_price: p.oldprice || null,
-    image_url: p.image || 'https://via.placeholder.com/300x300?text=No+Image',
-    category: p.category || "Fashnsta",
-    badge: p.badge || ""
-  };
-}
-
-function productCard(raw){
-  const p = normalizeProduct(raw);
+function createProductCard(product) {
+  const image = product.image_url || "https://via.placeholder.com/400x500?text=No+Image";
+  const price = Number(product.price || 0).toLocaleString("en-IN");
 
   return `
     <div class="product-card">
-      <a href="product.html?id=${p.id}">
-        <img src="${p.image_url}" alt="${p.name}">
-        <h3>${p.name}</h3>
-        <p>${p.category}</p>
-
-        <div>
-          <strong>${formatPrice(p.price)}</strong>
-          ${p.sale_price ? `<span style="text-decoration:line-through;">${formatPrice(p.sale_price)}</span>` : ""}
-        </div>
-      </a>
-
-      <button onclick='addToCartById("${p.id}")'>Add to Cart</button>
+      <img src="${image}" alt="${product.name}">
+      <div class="product-category">${product.category || "Jewellery"}</div>
+      <h3>${product.name}</h3>
+      <div class="price">₹${price}</div>
+      <div class="product-actions">
+        <a href="product.html?id=${product.id}" class="view-btn">View</a>
+        <button class="gold-btn" onclick="addToCart('${product.id}')">Add to Cart</button>
+      </div>
     </div>
   `;
 }
 
-function renderProducts(products){
-  const grid = document.getElementById("productGrid");
-  if(!grid) return;
+function renderProducts(products, containerId = "products-container") {
+  const container = document.getElementById(containerId);
+  if (!container) return;
 
-  grid.innerHTML = products.map(productCard).join("");
+  container.innerHTML = "";
+
+  if (!products || products.length === 0) {
+    container.innerHTML = `<div class="empty-message">No products found.</div>`;
+    return;
+  }
+
+  products.forEach(product => {
+    container.innerHTML += createProductCard(product);
+  });
 }
